@@ -1,5 +1,8 @@
-# PRISM
+# Error Analysis of LLM-Generated Optimization Specifications
 
+### Patch-validated Root-cause Investigation of Specification Mistakes (PRISM)
+
+## Overview
 PRISM is a LangGraph workflow for qualitative error analysis of generated AMPL optimization specifications. It compares a generated AMPL model against the problem description, reference model, data, and solver output; assigns error labels from an evolving taxonomy; proposes a minimal patch; and validates the patch by solving the corrected optimization model and comparing its objective value with the reference objective.
 
 The study analyzes 231 non-perfect AMPL specifications from [EXEOS](https://github.com/neayoughi/EXEOS) runs, including compilation errors, runtime errors, and executable specifications with incorrect objective values. PRISM produced successful automated patches for 182 of the 231 cases, a 78.8% patch-validation rate, and the validated records were used to refine the final error taxonomy.
