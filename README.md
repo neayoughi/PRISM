@@ -48,14 +48,6 @@ Copy `config.example.json` to `config.json` and fill only the provider fields ne
 export EXEOS_CONFIG_PATH=/path/to/config.json
 ```
 
-## Run Tests
-
-The graph construction and routing tests do not execute AMPL or call external model providers:
-
-```bash
-PYTHONPATH=src python -m unittest discover -s tests -v
-```
-
 ## Run One Case
 
 Provide paths to a generated run, a reference solution, and an output directory:
