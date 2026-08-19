@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "problem_id",
+    "run_id",
+    "status",
+    "objective",
+    "labels",
+    "new_labels",
+    "differences",
+    "most_likely_root_cause",
+    "minimal_patch",
+    "confidence",
+    "model_stats"
+  ],
+  "properties": {
+    "problem_id": { "type": "string" },
+    "run_id": { "type": "string" },
+
+    "status": {
+      "type": "object",
+      "required": ["reference", "generated"],
+      "properties": {
+        "reference": { "type": "string" },
+        "generated": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+
+    "objective": {
+      "type": "object",
+      "required": ["reference", "generated", "relative_error"],
+      "properties": {
+        "reference": { "type": ["number", "null"] },
+        "generated": { "type": ["number", "null"] },
+        "relative_error": { "type": ["number", "null"] }
+      },
+      "additionalProperties": false
+    },
+
+    "labels": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "pattern": "^[A-Z]+-[A-Z0-9]+(?:-[A-Z0-9]+)*$" },
+      "uniqueItems": true
+    },
+
+    "new_labels": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["label", "definition", "reason"],
+        "properties": {
+          "label": { "type": "string", "pattern": "^[A-Z]+-[A-Z0-9]+(?:-[A-Z0-9]+)*$" },
+          "definition": { "type": "string" },
+          "reason": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+
+    "differences": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["category", "summary", "evidence"],
+        "properties": {
+          "category": { "type": "string" },
+          "summary": { "type": "string" },
+          "evidence": { "type": "array", "items": { "type": "string" } },
+          "impact": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+
+    "most_likely_root_cause": { "type": "string" },
+
+    "minimal_patch": {
+      "type": "object",
+      "required": ["patch_type", "patch_text"],
+      "properties": {
+        "patch_type": {
+          "type": "string",
+          "enum": ["objective", "constraint", "variable", "data", "indexing", "multiple"]
+        },
+        "patch_text": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+
+    "model_stats": {
+      "type": "object",
+      "required": ["reference", "generated", "diff"],
+      "properties": {
+        "reference": {
+          "type": "object",
+          "properties": {
+            "n_sets": { "type": "integer" },
+            "n_params": { "type": "integer" },
+            "n_vars": { "type": "integer" },
+            "n_objectives": { "type": "integer" },
+            "n_constraints_decl": { "type": "integer" }
+          },
+          "required": ["n_sets", "n_params", "n_vars", "n_objectives", "n_constraints_decl"],
+          "additionalProperties": false
+        },
+        "generated": {
+          "type": "object",
+          "properties": {
+            "n_sets": { "type": "integer" },
+            "n_params": { "type": "integer" },
+            "n_vars": { "type": "integer" },
+            "n_objectives": { "type": "integer" },
+            "n_constraints_decl": { "type": "integer" }
+          },
+          "required": ["n_sets", "n_params", "n_vars", "n_objectives", "n_constraints_decl"],
+          "additionalProperties": false
+        },
+        "diff": {
+          "type": "object",
+          "properties": {
+            "n_sets": { "type": "integer" },
+            "n_params": { "type": "integer" },
+            "n_vars": { "type": "integer" },
+            "n_objectives": { "type": "integer" },
+            "n_constraints_decl": { "type": "integer" }
+          },
+          "required": ["n_sets", "n_params", "n_vars", "n_objectives", "n_constraints_decl"],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

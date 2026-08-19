@@ -1,0 +1,86 @@
+TAXONOMY
+{taxonomy}
+
+SCHEMA
+{schema}
+
+TASK
+Compare a reference AMPL formulation and a generated AMPL formulation for the same instance.
+Classify the formulation error(s) that best explain the observed objective gap or solve-status mismatch.
+
+OUTPUT RULES
+- Return a single JSON object only.
+- The JSON must conform to SCHEMA exactly.
+- Fill "labels" with all formulation-error labels that are needed to explain the observed error.
+- Prefer taxonomy labels from TAXONOMY when they fit.
+- Multiple labels may be used when the generated formulation contains more than one distinct error supported by evidence.
+- Do not add near-duplicate labels for the same error.
+- If the evidence does not fit any taxonomy label, include one or more new labels in "labels".
+- Each new label must use the format AREA-SUMMARY, such as CON-CAPACITY-MISSING or DATA-UNIT-MISMATCH.
+- For each new label, add an entry to "new_labels" with its definition and reason.
+- If no new label is needed, set "new_labels" to an empty array.
+- In "differences", provide items ordered by likely impact, from highest to lowest.
+- Evidence strings must quote short, concrete snippets from the provided models or solver outputs.
+- Do not invent data, constraints, or solution values that do not appear in the inputs.
+- If an objective value is not available, use null and explain this in most_likely_root_cause.
+- Always fill model_stats from the MODEL_STATS_DECL_COUNTS block.
+
+MODEL_STATS INSTRUCTIONS
+- Include a top-level field "model_stats" that matches the SCHEMA.
+- Use the MODEL_STATS_DECL_COUNTS block below as the source of truth.
+- Compute diff as: diff[key] = generated[key] - reference[key].
+- Do not recompute counts from the AMPL text.
+
+REQUIRED ANALYSIS STEPS
+1) Determine solve status for both sides from solver outputs.
+2) Extract objective values if possible and compute relative_error when the reference objective is nonzero.
+3) Compare formulation structure and locate the most impactful differences:
+   - objective terms, coefficients, index ranges, and sense
+   - constraints: missing or extra families, wrong sense, wrong coefficients, wrong RHS, index-range shifts, and initial or final conditions
+   - variables: missing or extra variables, wrong bounds, wrong domains, and wrong index sets
+   - data binding: missing entries, wrong dimensions, wrong parameter mapping, default values, and scale or unit mismatches
+4) Assign all labels that explain distinct formulation errors.
+   - Use existing taxonomy labels when possible.
+   - Add a new label only when no existing label fits the evidence.
+5) Explain the most likely root cause as the smallest formulation change, or smallest set of changes, that explains the observed error.
+6) Propose a minimal_patch for the generated model:
+   - patch_type must be one of: "objective", "constraint", "variable", "data", "indexing", "multiple".
+   - patch_text must be a short, actionable AMPL edit or replacement snippet.
+
+CONTEXT
+problem_id: {problem_id}
+run_id: {run_id}
+
+MODEL_STATS_DECL_COUNTS
+(reference, generated, and diff values are facts)
+{model_stats_block}
+
+REFERENCE_MODEL
+```ampl
+{ref_model}
+```
+
+REFERENCE_DATA
+```ampl
+{ref_data}
+```
+
+REFERENCE_SOLVER_OUTPUT
+```
+{ref_output}
+```
+
+GENERATED_MODEL
+```ampl
+{gen_model}
+```
+
+GENERATED_DATA
+```ampl
+{gen_data}
+```
+
+GENERATED_SOLVER_OUTPUT
+```
+{gen_output}
+```

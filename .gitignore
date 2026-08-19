@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+.DS_Store
+
+config.json
+reports/
+reports_langgraph/
+logs/
+*.log
+
+data/Solution/
+data/reports/
+data/result-human validation/AMPL4-*/
+*.zip

@@ -1,0 +1,9 @@
+langgraph>=1.0,<2
+langchain-core
+langchain-openai
+langchain-google-genai
+google-auth
+google-cloud-aiplatform
+google-genai
+jsonschema
+pydantic

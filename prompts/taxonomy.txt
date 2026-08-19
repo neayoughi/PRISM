@@ -1,0 +1,53 @@
+Initial taxonomy labels
+
+Label-use rule:
+Use all labels needed to explain distinct formulation errors supported by evidence. Multiple labels are valid when the generated formulation contains more than one error.
+
+Fallback rule:
+If none of the labels below fit an evidence-supported error, create a new label in the format AREA-SUMMARY.
+AREA must be one of: OBJ, CON, VAR, DATA, or MODEL.
+SUMMARY should be short, specific, and written in uppercase words separated by hyphens.
+Do not create a new label when an existing label already covers the issue.
+
+
+
+Objective (OBJ)
+- OBJ-SENSE
+- OBJ-TERM-MISSING
+- OBJ-TERM-EXTRA
+- OBJ-COEFF
+- OBJ-CONSTANT
+- OBJ-INDEX-RANGE
+- OBJ-NONLINEAR
+
+Constraints (CON)
+- CON-FAMILY-MISSING
+- CON-FAMILY-EXTRA
+- CON-SENSE
+- CON-SIGN
+- CON-RHS
+- CON-INDEX-RANGE
+- CON-INIT-FINAL
+
+Variables (VAR)
+- VAR-MISSING
+- VAR-EXTRA
+- VAR-BOUNDS
+- VAR-INTEGRALITY
+- VAR-INDEX-SET
+- VAR-FIXED
+
+Data (DATA)
+- DATA-PARAM-MAP
+- DATA-SET-MAP
+- DATA-DIM
+- DATA-VALUE
+- DATA-MISSING-IDX
+- DATA-DEFAULT-ZERO
+- DATA-SCALE-UNIT
+
+Model-level structure (MODEL)
+- MODEL-COMPONENT-MISMATCH
+- MODEL-UNDECLARED-SYMBOL
+- MODEL-NAME-MISMATCH
+

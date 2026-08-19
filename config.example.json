@@ -1,0 +1,7 @@
+{
+  "openai_api_key": "",
+  "openai_org_id": "",
+  "gcp_project_id": "",
+  "gcp_location": "us-central1",
+  "gemini3_thinking_level": "LOW"
+}
