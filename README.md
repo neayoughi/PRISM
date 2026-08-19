@@ -13,8 +13,8 @@ The study analyzes 231 non-perfect AMPL specifications from [EXEOS](https://gith
 
 - `src/agents/`: LangGraph workflow, command-line entry point, analysis, patch evaluation, AMPL execution, schema, rendering, and model-provider modules.
 - `prompts/`: taxonomy, task template, output schema, and prompt files used by the workflow.
-- `data/EXEOS/`: Excel workbooks for erroneous AMPL specifications.
-- `result/`:  Result files. 
+- `data/EXEOS/`: selected Excel workbooks for erroneous AMPL specifications.
+- `result/`: combined human-validation result files, ordered first by Gemini 2.5 Pro cases and then by o4-mini cases.
 - `assets/prism-approach.png`: approach overview figure.
 
 Reference solutions and the full `data/Solution` directory are intentionally not included.
@@ -25,10 +25,10 @@ The public data subset contains:
 
 - `data/EXEOS/AMPL4-gemini2.5/ErrorAnalysis_AMPL4-gemini2.5pro.xlsx`
 - `data/EXEOS/AMPL4-o4mini/ErrorAnalysis_AMPL-o4mini.xlsx`
-- `result/gemeni2.5/batch_report_gemini2.5.csv`
-- `result/gemeni2.5/batch_patch_eval_gemini2.5.csv`
-- `result/o4mini/batch_report_o4mini.csv`
-- `result/o4mini/batch_patch_eval_o4mini.csv`
+- `result/batch_report_human_validated.csv`
+- `result/batch_patch_eval_human_validated.csv`
+
+Each combined result file contains 231 cases: 97 Gemini 2.5 Pro cases followed by 134 o4-mini cases.
 
 ## Setup
 
