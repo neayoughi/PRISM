@@ -28,7 +28,7 @@ The public data subset contains:
 - `result/batch_report_human_validated.csv`
 - `result/batch_patch_eval_human_validated.csv`
 
-Each combined result file contains 231 cases: 97 Gemini 2.5 Pro cases followed by 134 o4-mini cases.
+Each combined result file contains 231 cases: 97 Gemini 2.5 Pro cases followed by 134 o4-mini cases. The `model` column identifies the source model for repeated `problem_id` and `run_id` pairs, and the `human_validation` column preserves the validated True/False status.
 
 ## Setup
 
