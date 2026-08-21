@@ -130,9 +130,211 @@ o4mini,21,run_2,DATA-PARAM-MAP,multiple,"1. In the model file, replace `param Ma
 o4mini,21,run_3,DATA-SCALE-UNIT,multiple,"1. Scale monthly capacity by defining `HoursPerMachine = WorkHours * ShiftsPerDay * WorkDaysPerMonth` with 2 shifts and 24 working days, then use 384 hours per available machine-month.2. Remove the fixed `Maintain[t,i]` restriction and bound the integer maintenance decision `maint[i,t]` by `MachinesPerType[i]`; retain the total-downtime equalities.3. Replace the all-month aggregate `Minimum_Store` family with a per-product final-month inventory requirement.4. Add `MaxStorage = 100` and the missing per-product, per-month inventory upper bound.",108680,108680,TRUE,0,0,patch_works,Gurobi 12.0.1: optimal solution; objective 10868046 simplex iterationsampl_solve_completed,1,5,TRUE
 o4mini,21,run_4,MODEL-MISSING-TERMINATOR,multiple,"1. Restore the missing semicolon after `DowntimeRequirement`.2. Remove the fixed `Maintain[m,t]` parameter and add bounded integer maintenance decisions `Gamma[t,m]`; apply the total-downtime equalities to `Gamma`.3. Scale monthly capacity by defining `HoursPerMachine = WorkHours * ShiftsPerDay * WorkDaysPerMonth` with 2 shifts and 24 working days, then use 384 hours per available machine-month.4. Add `MaxStorage = 100` and the missing per-product, per-month inventory upper bound.",108680,108680,TRUE,0,0,patch_works,Gurobi 12.0.1: optimal solution; objective 10868046 simplex iterationsampl_solve_completed,1,5,TRUE
 o4mini,21,run_5,MODEL-MISSING-TERMINATOR,multiple,"1. Restore the missing final semicolons in the evaluated model and data files.2. Remove the fixed `Maintain[m,t]` parameter and add bounded integer maintenance decisions `Gamma[t,m]`; apply the total-downtime equalities to `Gamma`.3. Scale monthly capacity by defining `HoursPerMachine = WorkHours * ShiftsPerDay * WorkDaysPerMonth` with 2 shifts and 24 working days, then use 384 hours per available machine-month.4. Replace the all-month `KeepInventory` family with a per-product final-month inventory requirement.5. Add `MaxStorage = 100` and the missing per-product, per-month inventory upper bound.",108680,108680,TRUE,0,0,patch_works,Gurobi 12.0.1: optimal solution; objective 10868046 simplex iterationsampl_solve_completed,1,5,TRUE
-o4mini,22,run_1,DATA-DIMENSION,multiple,"1. Change the requirement parameter from `param requirement {MANPOWER, YEARS}` to `param requirement {YEARS, MANPOWER}` and use `requirement[i,k]` in the requirement constraint.2. Replace the unrestricted three-dimensional retraining variable with the five supported flows: unskilled-to-semi-skilled retraining, semi-skilled-to-skilled retraining, skilled-to-semi-skilled downgrading, skilled-to-unskilled downgrading, and semi-skilled-to-unskilled downgrading.3. Replace the workforce-balance constraints so current recruits enter with survival coefficients 0.75, 0.80, and 0.90, experienced workers use their proper retention coefficients, and downward transfers enter the destination category with coefficient 0.5.4. Add the annual cap of 200 on unskilled-to-semi-skilled retraining and the 25% skilled-workforce cap on semi-skilled-to-skilled retraining.5. Remove the unsupported `Outflow_Limit` constraint family.6. Restore the missing final semicolons in the model and data files.",841.796875,841.796875,TRUE,0,0,patch_works,Gurobi 12.0.1: optimal solution; objective 841.7968758 simplex iterationsampl_solve_completed,1,5,FALSE
+o4mini,22,run_1,MODEL-COMPONENT-MISMATCH,multiple,"// ===== model.mod =====
+# Manpower Planning model that matches the notebook formulation
+
+param T integer > 0;
+set YEARS  := 1..T;
+set YEARS0 := 0..T;
+
+set CATS;  # 1=Unskilled, 2=Semi-skilled, 3=Skilled
+
+param strength    {CATS} >= 0;         # workforce at year 0
+param requirement {CATS, YEARS} >= 0;  # required effective manpower
+
+param recruit_cap {CATS} >= 0;         # annual recruitment cap
+param shorttime_cap >= 0;              # per category per year
+param overman_cap   >= 0;              # total per year
+
+param retrain_u_semi_cap >= 0;         # Unskilled -> Semi cap per year
+param retrain_semi_s_frac >= 0, <= 1;  # Semi -> Skilled cap as fraction of Skilled workforce
+
+# Variables
+var t {CATS, YEARS0} >= 0;             # total workforce
+var u {CATS, YEARS}  >= 0;             # recruits
+var w {CATS, YEARS}  >= 0;             # redundancies
+var x {CATS, YEARS}  >= 0;             # short-time
+var y {CATS, YEARS}  >= 0;             # overmanning
+
+var v_u_semi {YEARS} >= 0;             # Unskilled -> Semi-skilled
+var v_semi_s {YEARS} >= 0;             # Semi-skilled -> Skilled
+
+var r_s_semi {YEARS} >= 0;             # Skilled -> Semi-skilled
+var r_s_u    {YEARS} >= 0;             # Skilled -> Unskilled
+var r_semi_u {YEARS} >= 0;             # Semi-skilled -> Unskilled
+
+# Objective used in the notebook
+minimize Total_Redundancy:
+  sum {c in CATS, yr in YEARS} w[c,yr];
+
+# Initial strength
+subject to InitStrength {c in CATS}:
+  t[c,0] = strength[c];
+
+# Recruitment caps
+subject to RecruitCap {c in CATS, yr in YEARS}:
+  u[c,yr] <= recruit_cap[c];
+
+# Short-time caps
+subject to ShortCap {c in CATS, yr in YEARS}:
+  x[c,yr] <= shorttime_cap;
+
+# Overmanning cap (total per year)
+subject to OvermanCap {yr in YEARS}:
+  sum {c in CATS} y[c,yr] <= overman_cap;
+
+# Requirement equality from the notebook
+subject to MeetRequirement {c in CATS, yr in YEARS}:
+  t[c,yr] - y[c,yr] - 0.5*x[c,yr] = requirement[c,yr];
+
+# Retraining caps from the notebook
+subject to RetrainUSemiCap {yr in YEARS}:
+  v_u_semi[yr] <= retrain_u_semi_cap;
+
+subject to RetrainSemiSkilledLimit {yr in YEARS}:
+  v_semi_s[yr] <= retrain_semi_s_frac * t[3,yr];
+
+# Balance equations (same coefficients as notebook)
+
+# Skilled (3)
+subject to BalanceSkilled {yr in YEARS}:
+  t[3,yr] =
+    0.95*t[3,yr-1] + 0.90*u[3,yr] + 0.95*v_semi_s[yr]
+    - r_s_semi[yr] - r_s_u[yr] - w[3,yr];
+
+# Semi-skilled (2)
+subject to BalanceSemi {yr in YEARS}:
+  t[2,yr] =
+    0.95*t[2,yr-1] + 0.80*u[2,yr] + 0.95*v_u_semi[yr]
+    - v_semi_s[yr] + 0.50*r_s_semi[yr]
+    - r_semi_u[yr] - w[2,yr];
+
+# Unskilled (1)
+subject to BalanceUnskilled {yr in YEARS}:
+  t[1,yr] =
+    0.90*t[1,yr-1] + 0.75*u[1,yr]
+    - v_u_semi[yr] + 0.50*r_s_u[yr] + 0.50*r_semi_u[yr]
+    - w[1,yr];
+
+// ===== data.dat =====
+set CATS := 1 2 3;
+param T := 3;
+
+param strength :=
+1 2000
+2 1500
+3 1000
+;
+
+param recruit_cap :=
+1 500
+2 800
+3 500
+;
+
+param shorttime_cap := 50;
+param overman_cap   := 150;
+
+# Notebook caps
+param retrain_u_semi_cap   := 200;
+param retrain_semi_s_frac  := 0.25;
+
+# requirement[c,yr]
+param requirement :
+        1     2     3 :=
+1     1000   500     0
+2     1400  2000  2500
+3     1000  1500  2000
+;
+",841.796875,841.796875,TRUE,0,0,patch_works,"Gurobi 13.0.0: Gurobi 13.0.0: optimal solution; objective 841.796875
+8 simplex iterations
+solve_result: solved
+solve_message: Gurobi 13.0.0: optimal solution; objective 841.796875
+8 simplex iterations
+
+ampl_solve_completed
+",1,5,FALSE
 o4mini,22,run_2,DATA-DIMENSION,multiple,"1. Transpose the `requirement` table so its rows are manpower categories and its columns are years, consistent with `requirement {CATEGORIES, YEARS}` and `requirement[k,i]`.2. Replace the unrestricted `Retrain[k_from,k_to,i]` variable with the five supported flows: unskilled-to-semi-skilled retraining, semi-skilled-to-skilled retraining, skilled-to-semi-skilled downgrading, skilled-to-unskilled downgrading, and semi-skilled-to-unskilled downgrading.3. Replace `Define_Headcount` and `Workforce_Balance` with category-specific current-year balance equations. Apply experienced-worker retention to the prior workforce, first-year retention to current recruits, experienced-worker retention to upward retraining inflows, and 0.5 retention to downward transfers. Subtract current redundancies and outgoing transfers without a retention multiplier.4. Add the annual limit of 200 on unskilled-to-semi-skilled retraining and the 25% skilled-workforce limit on semi-skilled-to-skilled retraining.5. Replace the relaxed requirement and overmanning pair with the exact relation `Workers[k,i] - Overmanned[k,i] - 0.5*ShortTime[k,i] = requirement[k,i]`.6. Remove `Workforce_Outflow_Limit`, which excludes current recruits from same-year outflow and is absent from the reference formulation.",841.796875,841.796875,TRUE,0,0,patch_works,Gurobi 12.0.1: optimal solution; objective 841.7968758 simplex iterationsampl_solve_completed,1,5,TRUE
-o4mini,22,run_3,OBJ-TERM-EXTRA,multiple,"1. Replace the monetary-cost objective with `minimize Total_Redundancy: sum {i in YEARS, k in SKILLS} Redundant[i,k];`.2. Add the five supported workforce-flow variables: unskilled-to-semi-skilled retraining, semi-skilled-to-skilled retraining, skilled-to-semi-skilled downgrading, skilled-to-unskilled downgrading, and semi-skilled-to-unskilled downgrading.3. Replace `Meet_Requirement` and `Workforce_Flow` with category-specific current-year workforce-balance equations. Apply experienced-worker retention to the prior workforce, first-year retention to current recruits, experienced-worker retention to upward retraining inflows, and 0.5 retention to downward transfers. Subtract current redundancies and outgoing transfers directly.4. Add the annual limit of 200 on unskilled-to-semi-skilled retraining and the 25% skilled-workforce limit on semi-skilled-to-skilled retraining.5. Use the exact requirement relation `Workforce[i,k] - Overmanned[i,k] - 0.5*ShortTime[i,k] = requirement[i,k]`.6. Remove `Redundancy_Feasibility`, which is absent from the reference formulation.",841.796875,841.796875,TRUE,0,0,patch_works,Gurobi 12.0.1: optimal solution; objective 841.7968758 simplex iterationsampl_solve_completed,1,5,FALSE
+o4mini,22,run_3,MODEL-COMPONENT-MISMATCH,multiple,"The generated model is structurally incorrect and must be replaced entirely. The data file must also be corrected. A correct model requires the exact structure of the reference model, including all variables, constraints, and coefficients.
+
+MODEL REPLACEMENT (.mod):
+```ampl
+param T integer > 0;
+set YEARS := 1..T;
+set YEARS0 := 0..T;
+set CATS;
+param strength {CATS} >= 0;
+param requirement {CATS, YEARS} >= 0;
+param recruit_cap {CATS} >= 0;
+param shorttime_cap >= 0;
+param overman_cap >= 0;
+param retrain_u_semi_cap >= 0;
+param retrain_semi_s_frac >= 0, <= 1;
+
+var t {CATS, YEARS0} >= 0;
+var u {CATS, YEARS} >= 0;
+var w {CATS, YEARS} >= 0;
+var x {CATS, YEARS} >= 0;
+var y {CATS, YEARS} >= 0;
+var v_u_semi {YEARS} >= 0;
+var v_semi_s {YEARS} >= 0;
+var r_s_semi {YEARS} >= 0;
+var r_s_u {YEARS} >= 0;
+var r_semi_u {YEARS} >= 0;
+
+minimize Total_Redundancy:
+  sum {c in CATS, yr in YEARS} w[c,yr];
+
+subject to InitStrength {c in CATS}:
+  t[c,0] = strength[c];
+
+subject to RecruitCap {c in CATS, yr in YEARS}:
+  u[c,yr] <= recruit_cap[c];
+
+subject to ShortCap {c in CATS, yr in YEARS}:
+  x[c,yr] <= shorttime_cap;
+
+subject to OvermanCap {yr in YEARS}:
+  sum {c in CATS} y[c,yr] <= overman_cap;
+
+subject to MeetRequirement {c in CATS, yr in YEARS}:
+  t[c,yr] - y[c,yr] - 0.5*x[c,yr] = requirement[c,yr];
+
+subject to RetrainUSemiCap {yr in YEARS}:
+  v_u_semi[yr] <= retrain_u_semi_cap;
+
+subject to RetrainSemiSkilledLimit {yr in YEARS}:
+  v_semi_s[yr] <= retrain_semi_s_frac * t[3,yr];
+
+subject to BalanceSkilled {yr in YEARS}:
+  t[3,yr] = 0.95*t[3,yr-1] + 0.90*u[3,yr] + 0.95*v_semi_s[yr] - r_s_semi[yr] - r_s_u[yr] - w[3,yr];
+
+subject to BalanceSemi {yr in YEARS}:
+  t[2,yr] = 0.95*t[2,yr-1] + 0.80*u[2,yr] + 0.95*v_u_semi[yr] - v_semi_s[yr] + 0.50*r_s_semi[yr] - r_semi_u[yr] - w[2,yr];
+
+subject to BalanceUnskilled {yr in YEARS}:
+  t[1,yr] = 0.90*t[1,yr-1] + 0.75*u[1,yr] - v_u_semi[yr] + 0.50*r_s_u[yr] + 0.50*r_semi_u[yr] - w[1,yr];
+```
+
+DATA REPLACEMENT (.dat):
+```ampl
+set CATS := 1 2 3;
+param T := 3;
+param strength := 1 2000, 2 1500, 3 1000;
+param recruit_cap := 1 500, 2 800, 3 500;
+param shorttime_cap := 50;
+param overman_cap := 150;
+param retrain_u_semi_cap := 200;
+param retrain_semi_s_frac := 0.25;
+param requirement : 1 2 3 := 1 1000 500 0, 2 1400 2000 2500, 3 1000 1500 2000;
+```",841.796875,841.796875,TRUE,0,0,patch_works,"Gurobi 13.0.0: Gurobi 13.0.0: optimal solution; objective 841.796875
+8 simplex iterations
+solve_result: solved
+solve_message: Gurobi 13.0.0: optimal solution; objective 841.796875
+8 simplex iterations
+
+ampl_solve_completed
+",2,5,FALSE
 o4mini,22,run_4,VAR-INDEX-SET,multiple,"1. Define years 1 through 3 and initial year 0, then index workforce, recruitment, redundancy, overmanning, and short-time decisions by category and year.2. Transpose the requirement table so rows denote manpower categories and columns denote years.3. Replace fixed recruitment with annual recruitment decisions subject to the supplied category caps.4. Replace the monetary-cost objective with `minimize Total_Redundancy: sum {c in CATS, yr in YEARS} w[c,yr];`.5. Add the workforce state, two upward-retraining flows, and three downward-transfer flows.6. Add the initial-workforce equations, annual recruitment caps, category-specific workforce balances, and retraining limits.7. Replace MinUsage and MaxUsage with `t[c,yr] - y[c,yr] - 0.5*x[c,yr] = requirement[c,yr]`.8. Apply wastage as workforce-retention coefficients, apply the overmanning cap in each year, and apply the short-time cap to each category and year.",841.796875,841.796875,TRUE,0,0,patch_works,Gurobi 12.0.1: optimal solution; objective 841.7968758 simplex iterationsampl_solve_completed,1,5,TRUE
 o4mini,22,run_5,CON-COEFF,multiple,"1. Remove `CapBalance`, `UnderLimit`, and `RedundantLimit`.2. Define years 1 through 3 and initial year 0, then add a workforce state and annual recruitment, redundancy, overmanning, and short-time decisions.3. Replace fixed recruitment with annual decisions subject to the supplied category caps.4. Transpose the requirement table so rows denote manpower categories and columns denote years.5. Replace the monetary-cost objective with `minimize Total_Redundancy: sum {c in CATS, yr in YEARS} w[c,yr];`.6. Add the two upward-retraining flows and three downward-transfer flows.7. Add the initial-workforce equations, annual workforce balances, exact requirement equality, and retraining limits.8. Apply the correct retention and transfer coefficients, the overmanning cap in each year, and the short-time cap to each category and year.",841.796875,841.796875,TRUE,0,0,patch_works,Gurobi 12.0.1: optimal solution; objective 841.7968758 simplex iterationsampl_solve_completed,1,5,TRUE
 o4mini,23,run_1,MODEL-COMPONENT-MISMATCH,multiple,"# model.mod  (Problem 12.5 / Section 13.5 cost objective)param T integer > 0;set YEARS  := 1..T;set YEARS0 := 0..T;set CATS;  # 1=Unskilled, 2=Semi-skilled, 3=Skilledparam strength      {CATS} >= 0;param requirement   {CATS, YEARS} >= 0;param lessonewaste  {CATS} >= 0, <= 1;param moreonewaste  {CATS} >= 0, <= 1;param recruit_cap   {CATS} >= 0;param shorttime_cap >= 0;        # per category per year (50)param overman_cap   >= 0;        # total per year (150)param retrain_u_semi_cap  >= 0;  # up to 200 per yearparam retrain_semi_s_frac >= 0, <= 1;  # <= 0.25 * skilled workforceparam costredundancy {CATS} >= 0;param costoverman    {CATS} >= 0;param costshort      {CATS} >= 0;param costretrain_u_semi >= 0;   # 400param costretrain_semi_s >= 0;   # 500# Decision variablesvar t {CATS, YEARS0} >= 0;   # workforce headcount at end of yearvar u {CATS, YEARS}  >= 0;   # recruitsvar w {CATS, YEARS}  >= 0;   # redundanciesvar x {CATS, YEARS}  >= 0;   # short-time workersvar y {CATS, YEARS}  >= 0;   # overmanning (superfluous)# Retrainingvar v_u_semi {YEARS} >= 0;   # 1 -> 2var v_semi_s {YEARS} >= 0;   # 2 -> 3# Downgrading (50% leave, no direct cost)var r_s_semi {YEARS} >= 0;   # 3 -> 2 (only 0.5 remain)var r_s_u    {YEARS} >= 0;   # 3 -> 1 (only 0.5 remain)var r_semi_u {YEARS} >= 0;   # 2 -> 1 (only 0.5 remain)# Cost objective from the book (Section 13.5.2)minimize TotalCost:  sum {yr in YEARS} (      costretrain_u_semi * v_u_semi[yr]    + costretrain_semi_s * v_semi_s[yr]    + sum {c in CATS} ( costredundancy[c] * w[c,yr]                      + costshort[c]      * x[c,yr]                      + costoverman[c]    * y[c,yr] )  );# Initial conditionssubject to InitStrength {c in CATS}:  t[c,0] = strength[c];# Recruitment capssubject to RecruitCap {c in CATS, yr in YEARS}:  u[c,yr] <= recruit_cap[c];# Short-time capssubject to ShortCap {c in CATS, yr in YEARS}:  x[c,yr] <= shorttime_cap;# Overmanning cap (total per year)subject to OvermanCap {yr in YEARS}:  sum {c in CATS} y[c,yr] <= overman_cap;# Requirements (same algebra as the book)subject to MeetRequirement {c in CATS, yr in YEARS}:  t[c,yr] - y[c,yr] - 0.5*x[c,yr] = requirement[c,yr];# Retraining capssubject to RetrainUSemiCap {yr in YEARS}:  v_u_semi[yr] <= retrain_u_semi_cap;subject to RetrainSemiToSkilledLimit {yr in YEARS}:  v_semi_s[yr] <= retrain_semi_s_frac * t[3,yr];# Continuity constraints with wastage (same structure as Section 13.5.2)# Skilled (3)subject to BalanceSkilled {yr in YEARS}:  t[3,yr] =     (1 - moreonewaste[3]) * t[3,yr-1]  + (1 - lessonewaste[3]) * u[3,yr]  + (1 - moreonewaste[3]) * v_semi_s[yr]  - r_s_semi[yr] - r_s_u[yr] - w[3,yr];# Semi-skilled (2)subject to BalanceSemi {yr in YEARS}:  t[2,yr] =     (1 - moreonewaste[2]) * t[2,yr-1]  + (1 - lessonewaste[2]) * u[2,yr]  + (1 - moreonewaste[2]) * v_u_semi[yr]  - v_semi_s[yr]  + 0.5 * r_s_semi[yr]  - r_semi_u[yr]  - w[2,yr];# Unskilled (1)subject to BalanceUnskilled {yr in YEARS}:  t[1,yr] =     (1 - moreonewaste[1]) * t[1,yr-1]  + (1 - lessonewaste[1]) * u[1,yr]  - v_u_semi[yr]  + 0.5 * r_s_u[yr]  + 0.5 * r_semi_u[yr]  - w[1,yr];",498677.2853,498677.2853,TRUE,0,0,patch_works,Gurobi 13.0.0: Gurobi 13.0.0: optimal solution; objective 498677.28535 simplex iterationssolve_result: solvedsolve_message: Gurobi 13.0.0: optimal solution; objective 498677.28535 simplex iterationsampl_solve_completed,1,5,FALSE
@@ -155,10 +357,60 @@ o4mini,26,run_2,MODEL-COMPONENT-MISMATCH,multiple,"1. Replace the static `Prod[i
 o4mini,26,run_3,MODEL-COMPONENT-MISMATCH,multiple,"1. Replace `x1`, `x2`, and free `StockE` with time-indexed `Production`, nonnegative `Stock`, `ExtraCapacity`, and accumulated `ProductiveCapacity` variables.2. Use years 0 through 6 for production and stock and years 1 through 7 for capacity additions.3. Add yearly continuity equalities with the one-year production lag and two-year capacity lag.4. Replace the shared static capacity constraint with cumulative productive-capacity limits.5. Fix year-0 production and stock, impose terminal production lower bounds, and prohibit capacity additions after the planning horizon.6. Use the proper lagged year ranges in the five-year manpower objective.7. Scale demand to 60, 60, and 30, bind coefficient tables in input-by-target-industry orientation, and add terminal static Leontief demand.",2450.026623,2450.026623,TRUE,0,0,patch_works,Gurobi 12.0.1: optimal solution; objective 2450.02662337 simplex iterationsampl_solve_completed,1,5,TRUE
 o4mini,26,run_4,MODEL-COMPONENT-MISMATCH,multiple,"1. Replace `x1`, `x2`, `s_raw`, and `s_int` with time-indexed `Production`, nonnegative `Stock`, `ExtraCapacity`, and accumulated `ProductiveCapacity`.2. Use years 0 through 6 for production and stock and years 1 through 7 for capacity additions.3. Add unified yearly continuity equalities with one-year production-input lags and two-year capacity-input lags.4. Replace the static `x1` and `x2` upper bounds with cumulative productive-capacity limits on `Production`.5. Place demand of 60, 60, and 30 in each yearly continuity equation except year 0, rather than imposing one horizon-wide demand bound on `x2`.6. Fix year-0 production and stock, impose terminal production lower bounds, and prohibit capacity additions after the planning horizon.7. Use the lag-compatible production and capacity-expansion ranges in the five-year manpower objective.8. Bind coefficient tables in input-by-target-industry orientation and add terminal static Leontief demand.",2450.026623,2450.026623,TRUE,0,0,patch_works,Gurobi 12.0.1: optimal solution; objective 2450.02662337 simplex iterationsampl_solve_completed,1,5,TRUE
 o4mini,26,run_5,MODEL-COMPONENT-MISMATCH,multiple,"The model structure requires a complete rewrite, and the data file must be completely replaced to fix numerous data mapping errors. 1. Replace the contents of the generated .mod file with the following:```amplparam T integer >= 1;set PROD;param inputone {PROD, PROD} >= 0;param manpowerone {PROD} >= 0;param inputtwo {PROD, PROD} >= 0;param manpowertwo {PROD} >= 0;param stock {PROD} >= 0;param capacity {PROD} >= 0;param demand {PROD} >= 0;param final_demand {PROD} >= 0;var Production {k in PROD, t in 0..T+1} >= 0;var Stock {k in PROD, t in 0..T+1} >= 0;var ExtraCapacity {k in PROD, t in 1..T+2} >= 0;var ProductiveCapacity {k in PROD, t in 1..T+1} =    capacity[k] + sum {y in 2..t} ExtraCapacity[k,y];maximize Total_Manpower:    sum {t in 1..T} (        sum {k in PROD} manpowerone[k] * Production[k, t+1]      + sum {k in PROD} manpowertwo[k] * ExtraCapacity[k, t+2]    );s.t. Init_Prod_Zero {k in PROD}: Production[k,0] = 0;s.t. Init_Stock_Fixed {k in PROD}: Stock[k,0] = stock[k];s.t. Continuity {k in PROD, t in 0..T}:    Stock[k,t] + Production[k,t] =    (if t in 1..T then demand[k] else 0)    + sum {j in PROD} (        inputone[k,j] * Production[j,t+1]      + inputtwo[k,j] * ExtraCapacity[j,t+2]      )    + Stock[k,t+1];s.t. Capacity_Limit {k in PROD, t in 1..T+1}: Production[k,t] <= ProductiveCapacity[k,t];s.t. Terminal_Prod_LB {k in PROD}: Production[k,T+1] >= final_demand[k];s.t. No_Late_Capacity {k in PROD, t in T+1..T+2}: ExtraCapacity[k,t] = 0;```2. Replace the contents of the generated .dat file with the following:```amplparam T := 5;set PROD := 1 2 3;param inputone: 1 2 3 :=1  0.1 0.5 0.42  0.1 0.1 0.23  0.2 0.1 0.2;param manpowerone :=1 0.62 0.33 0.2;param inputtwo: 1 2 3 :=1  0.0 0.7 0.92  0.1 0.1 0.23  0.2 0.1 0.2;param manpowertwo :=1 0.42 0.23 0.1;param stock :=1 1502 803 100;param capacity :=1 3002 3503 280;param demand :=1 602 603 30;param final_demand :=1 166.3972 105.6683 92.308;```",2450.026623,2450.026623,TRUE,0,0,patch_works,Gurobi 13.0.0: Gurobi 13.0.0: optimal solution; objective 2450.02662337 simplex iterationssolve_result: solvedsolve_message: Gurobi 13.0.0: optimal solution; objective 2450.02662337 simplex iterationsampl_solve_completed,1,5,FALSE
-o4mini,29,run_1,DATA-PARAM-MISSING,multiple,"1. Change `set T;` to `set T ordered;`.2. Add `param hours {t in T} >= 0;` and supply the period durations 6, 3, 6, 3, and 6 in the data file.3. Multiply the running-cost and extra-production-cost objective terms by `hours[t]`; leave startup cost unscaled.4. Replace the period-1 zero initial condition in `Startup_Definition` with a cyclic predecessor relation from the first period to `last(T)`.5. Change `Meet_Demand` from `>= demand[t]` to `= demand[t]`.6. Add `<= num[k]` to the declaration of `n_start[k,t]`.",988540,988540,TRUE,0,0,patch_works,Gurobi 12.0.1: optimal solution; objective 98854013 simplex iterationsampl_solve_completed,1,5,FALSE
+o4mini,29,run_1,OBJ-COEFF,multiple,"1. In the model file, add the parameter declaration: `param hours {T} >= 0;`
+2. In the data file, add the parameter data: `param hours := 1 6, 2 3, 3 6, 4 3, 5 6;`
+3. In the model file, replace the `minimize TotalCost` block with: `minimize TotalCost: sum {t in T, k in K} (startcost[k] * start[t,k] + hours[t] * runcost[k] * y[t,k] + hours[t] * extracost[k] * (p[t,k] - minlevel[k] * y[t,k]));`
+4. In the model file, replace the `DemandReq` constraint with: `subject to DemandReq {t in T}: sum {k in K} p[t,k] = demand[t];`
+5. In the model file, remove the `StartupInitial` and `Startup` constraints and add: `subject to StartupLink {k in K, t in T}: start[t,k] >= y[t,k] - y[if ord(t)=1 then last(T) else prev(t), k];`",988540,988540,TRUE,0,0,patch_works,"Gurobi 13.0.0: Gurobi 13.0.0: optimal solution; objective 988540
+13 simplex iterations
+1 branching node
+solve_result: solved
+solve_message: Gurobi 13.0.0: optimal solution; objective 988540
+13 simplex iterations
+1 branching node
+
+ampl_solve_completed
+",1,5,FALSE
 o4mini,29,run_2,DATA-PARAM-MISSING,multiple,"1. Change `set T;` to `set T ordered;`.2. Add `param hours {t in T} >= 0;` and `param safety_margin >= 0;`; supply durations 6, 3, 6, 3, and 6 and `safety_margin := 0.15` in the data file.3. Multiply the running-cost and extra-production-cost objective terms by `hours[t]`; leave startup cost unscaled.4. Add bounded integer variable `Start[k,t]`, replace `startcost[k] * On[k,t]` with `startcost[k] * Start[k,t]`, and add the cyclic startup relation.5. Add the reserve-capacity family `sum {k in K} maxlevel[k] * On[k,t] >= (1 + safety_margin) * demand[t]`.6. Change `Meet_Demand` from `>= demand[t]` to `= demand[t]`.",988540,988540,TRUE,0,0,patch_works,Gurobi 12.0.1: optimal solution; objective 98854013 simplex iterationsampl_solve_completed,1,5,TRUE
 o4mini,29,run_3,DATA-PARAM-MISSING,multiple,"1. Change `set T;` to `set T ordered;`.2. Add `param hours {t in T} >= 0;` and supply durations 6, 3, 6, 3, and 6 in the data file.3. Multiply the running-cost and extra-production-cost terms by `hours[t]`; apply `extracost[k]` only to `p[k,t] - minlevel[k] * y[k,t]`; leave startup cost unscaled.4. Change `DemandFulfill` to `sum {k in K} p[k,t] = demand[t]`.5. Add `ReserveMargin`: `sum {k in K} maxlevel[k] * y[k,t] >= (1 + safety_margin) * demand[t]`.6. Replace the noncyclic startup constraints with one cyclic predecessor relation from period 1 to `last(T)`.7. Add `<= num[k]` to the declaration of `start[k,t]`.",988540,988540,TRUE,0,0,patch_works,Gurobi 12.0.1: optimal solution; objective 98854013 simplex iterationsampl_solve_completed,1,5,TRUE
-o4mini,29,run_4,DATA-PARAM-MISSING,multiple,"1. Change `set T;` to `set T ordered;`.2. Add `param hours {t in T} >= 0;` and supply the period durations 6, 3, 6, 3, and 6 in the data file.3. Multiply the running-cost and above-minimum production-cost objective terms by `hours[t]`; leave startup cost unscaled.4. Replace the period-1 zero condition in `Startup_Definition` with a cyclic predecessor relation from the first period to `last(T)`.5. Change `Meet_Demand` from `>= demand[t]` to `= demand[t]`.6. Add `<= num[k]` to the declaration of `NumStart[k,t]`.",988540,988540,TRUE,0,0,patch_works,Gurobi 12.0.1: optimal solution; objective 98854013 simplex iterationsampl_solve_completed,1,5,FALSE
+o4mini,29,run_4,OBJ-COEFF,multiple,"param hours_data {1..5} := [6, 3, 6, 3, 6];
+param hours {t in T} := hours_data[t];
+param safety_margin := 0.15;
+
+var y {k in K, t in T} integer >= 0 <= num[k];
+var b {k in K, t in T} integer >= 0 <= num[k];
+var p {k in K, t in T} >= 0;
+
+minimize Total_Cost:
+  sum {t in T, k in K} (
+      startcost[k] * b[k,t]
+    + hours[t] * runcost[k] * y[k,t]
+    + hours[t] * extracost[k] * (p[k,t] - minlevel[k] * y[k,t])
+  );
+
+subject to MeetDemand {t in T}:
+  sum {k in K} p[k,t] = demand[t];
+
+subject to ProdMin {k in K, t in T}:
+  p[k,t] >= minlevel[k] * y[k,t];
+
+subject to ProdMax {k in K, t in T}:
+  p[k,t] <= maxlevel[k] * y[k,t];
+
+subject to ReserveMargin {t in T}:
+  sum {k in K} maxlevel[k] * y[k,t] >= (1 + safety_margin) * demand[t];
+
+subject to StartupLink {k in K, t in T}:
+  b[k,t] >= y[k,t] - y[k, if t=1 then Horizon else t-1];",988540,988540,TRUE,0,0,patch_works,"Gurobi 13.0.0: Gurobi 13.0.0: optimal solution; objective 988540
+13 simplex iterations
+1 branching node
+solve_result: solved
+solve_message: Gurobi 13.0.0: optimal solution; objective 988540
+13 simplex iterations
+1 branching node
+
+ampl_solve_completed
+",3,5,FALSE
 o4mini,29,run_5,DATA-PARAM-MISSING,multiple,"1. Add `param hours {t in T} >= 0;` and supply durations 6, 3, 6, 3, and 6 in the data file.2. Multiply the running-cost and above-minimum production-cost terms by `hours[t]`; leave startup cost unscaled.3. Change `Demand_Meet` to `sum {k in K} p[k,t] = demand[t]`.4. Add `Reserve_Margin`: `sum {k in K} maxlevel[k] * y[k,t] >= (1 + safety_margin) * demand[t]`.5. Replace the noncyclic period-1 and later-period startup constraints with one cyclic predecessor relation from period 1 to `last(T)`.",988540,988540,TRUE,0,0,patch_works,Gurobi 12.0.1: optimal solution; objective 98854013 simplex iterationsampl_solve_completed,1,5,TRUE
 o4mini,3,run_1,DATA-PARAM-MAP,constraint,subject to Nuclear_Cap_Limit {t in PERIODS}: (1 - MaxNuke/100) * (sum {k in PERIODS: k >= t - NukeLife + 1 and k <= t} build_nuke[k]) <= (MaxNuke/100) * (OilCap[t] + (sum {k in PERIODS: k >= t - CoalLife + 1 and k <= t} build_coal[k]));,353,353,TRUE,0,0,patch_works,Gurobi 13.0.0: Gurobi 13.0.0: optimal solution; objective 35312 simplex iterationssolve_result: solvedsolve_message: Gurobi 13.0.0: optimal solution; objective 35312 simplex iterationsampl_solve_completed,1,5,FALSE
 o4mini,3,run_2,CON-FAMILY-MISSING,constraint,subject to NukeCap_Con2 {t in TIME}: (1 - MaxNuke/100) * (sum {s in TIME: s >= t - NukeLife + 1 and s <= t} build_nuke[s]) <= (MaxNuke/100) * (OilCap[t] + (sum {s in TIME: s >= t - CoalLife + 1 and s <= t} build_coal[s]));,353,353,TRUE,0,0,patch_works,Gurobi 13.0.0: Gurobi 13.0.0: optimal solution; objective 35312 simplex iterationssolve_result: solvedsolve_message: Gurobi 13.0.0: optimal solution; objective 35312 simplex iterationsampl_solve_completed,1,5,FALSE
