@@ -19,7 +19,7 @@ OUTPUT RULES
 - Each new label must use the format AREA-SUMMARY, such as CON-CAPACITY-MISSING or DATA-UNIT-MISMATCH.
 - For each new label, add an entry to "new_labels" with its definition and reason.
 - If no new label is needed, set "new_labels" to an empty array.
-- In "differences", provide items ordered by likely impact, from highest to lowest.
+- In "differences", provide 3 to 8 items ordered by likely impact, from highest to lowest.
 - Evidence strings must quote short, concrete snippets from the provided models or solver outputs.
 - Do not invent data, constraints, or solution values that do not appear in the inputs.
 - If an objective value is not available, use null and explain this in most_likely_root_cause.
