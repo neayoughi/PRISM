@@ -15,7 +15,7 @@ except Exception:
     class HumanMessage:  # type: ignore[override]
         content: str
 
-from llm_utils import get_llm, llm_call
+from .llm_utils import get_llm, llm_call
 
 
 @dataclass
