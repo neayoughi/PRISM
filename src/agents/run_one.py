@@ -6,7 +6,7 @@ import os
 import sys
 from pathlib import Path
 
-from variant4_agent import run_one as legacy_run_one
+from . import base_run_one as legacy_run_one
 
 from .workflow import AgenticOrchestrator
 
