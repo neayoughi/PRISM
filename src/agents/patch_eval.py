@@ -4,6 +4,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import textwrap
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
@@ -13,6 +14,20 @@ from .llm_agent import AgentConfig, call_classifier
 
 
 _OBJVAL_RE = re.compile(r"objective_value\s*[:=]\s*(-?\d+(?:\.\d+)?)", re.IGNORECASE)
+
+_PATCH_RESPONSE_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "model_mod": {"type": "string"},
+        "data_dat": {"type": "string"},
+    },
+    "required": ["model_mod"],
+    "additionalProperties": False,
+}
+
+
+class PatchGenerationError(RuntimeError):
+    """Raised after the model repeatedly returns an unusable patch response."""
 
 
 @dataclass
@@ -110,18 +125,56 @@ def regenerate_model_with_patch(
             "Use the solver feedback to refine the patched model while preserving the intended patch.\n"
         )
 
-    raw = call_classifier(cfg, system_prompt, user_prompt)
-    raw2 = raw.strip()
-    raw2 = re.sub(r"^```[a-zA-Z0-9_+-]*\s*", "", raw2)
-    raw2 = re.sub(r"```\s*$", "", raw2)
+    parse_error = ""
+    obj: Dict[str, Any] = {}
+    total_calls = max(1, int(cfg.max_retries) + 1)
+    for call_number in range(1, total_calls + 1):
+        retry_prompt = user_prompt
+        if parse_error:
+            retry_prompt += (
+                "\nPREVIOUS_RESPONSE_ERROR\n"
+                f"{parse_error}\n"
+                "Return the complete JSON object again. Do not truncate it. "
+                "Omit data_dat unless the data file must change.\n"
+            )
+        raw = call_classifier(
+            cfg,
+            system_prompt,
+            retry_prompt,
+            response_schema=_PATCH_RESPONSE_SCHEMA,
+            max_output_tokens=65536,
+        )
+        raw2 = str(raw).strip()
+        raw2 = re.sub(r"^```[a-zA-Z0-9_+-]*\s*", "", raw2)
+        raw2 = re.sub(r"```\s*$", "", raw2)
 
-    try:
-        obj = json.loads(raw2)
-    except Exception:
-        m = re.search(r"\{.*\}", raw2, flags=re.DOTALL)
-        if not m:
-            return {"model_mod": raw2}
-        obj = json.loads(m.group(0))
+        try:
+            parsed = json.loads(raw2)
+            if not isinstance(parsed, dict):
+                raise ValueError("patch response is not a JSON object")
+            obj = parsed
+            if not str(obj.get("model_mod", "") or obj.get("model", "")).strip():
+                raise ValueError("patch response has no model_mod")
+            break
+        except Exception as exc:
+            # Some providers still add prose around a valid JSON object.
+            m = re.search(r"\{.*\}", raw2, flags=re.DOTALL)
+            if m:
+                try:
+                    parsed = json.loads(m.group(0))
+                    if isinstance(parsed, dict) and str(
+                        parsed.get("model_mod", "") or parsed.get("model", "")
+                    ).strip():
+                        obj = parsed
+                        break
+                except Exception:
+                    pass
+            parse_error = (
+                f"invalid patch JSON on call {call_number}/{total_calls}: "
+                f"{type(exc).__name__}: {exc}; response length={len(raw2)}"
+            )
+    else:
+        raise PatchGenerationError(parse_error)
 
     model_mod = str(obj.get("model_mod", "") or obj.get("model", "") or "")
     data_dat = str(obj.get("data_dat", "") or obj.get("data", "") or "")
@@ -215,7 +268,7 @@ def solve_with_amplpy(work_dir: str, model_path: str, data_path: str) -> Tuple[s
 
     def _run_once() -> Tuple[int, str, str]:
         p = subprocess.run(
-            ["python3", os.path.basename(exec_path)],
+            [sys.executable, os.path.basename(exec_path)],
             cwd=work_dir,
             capture_output=True,
             text=True,
@@ -315,17 +368,31 @@ def evaluate_patch(
         attempt_dir = os.path.join(work_dir, f"attempt_{attempt_idx}")
         os.makedirs(attempt_dir, exist_ok=True)
 
-        patched_model = regenerate_model_with_patch(
-            cfg,
-            system_prompt,
-            current_model_text,
-            current_data_text,
-            description_text,
-            patch_type,
-            patch_text,
-            solver_feedback=solver_feedback,
-            attempt_number=attempt_idx,
-        )
+        try:
+            patched_model = regenerate_model_with_patch(
+                cfg,
+                system_prompt,
+                current_model_text,
+                current_data_text,
+                description_text,
+                patch_type,
+                patch_text,
+                solver_feedback=solver_feedback,
+                attempt_number=attempt_idx,
+            )
+        except PatchGenerationError as exc:
+            message = str(exc)
+            history.append(
+                {
+                    "attempt": attempt_idx,
+                    "status": "patch_generation_error",
+                    "patched_objective": None,
+                    "solver_output": message,
+                }
+            )
+            solver_feedback = message
+            last_solver_output = message
+            continue
 
         patched_model_path = os.path.join(attempt_dir, "model_patched.mod")
         data_path = os.path.join(attempt_dir, "data.dat")
@@ -404,7 +471,11 @@ def evaluate_patch(
         )
 
     return PatchEvalResult(
-        status="solver_error_max_attempts",
+        status=(
+            "patch_generation_error_max_attempts"
+            if history and all(x.get("status") == "patch_generation_error" for x in history)
+            else "solver_error_max_attempts"
+        ),
         reference_objective=ref_obj,
         patched_objective=last_patched_obj,
         objective_match=None,
