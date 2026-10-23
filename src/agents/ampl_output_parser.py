@@ -11,7 +11,14 @@ class SolveInfo:
     objective: Optional[float]
 
 
-_OBJ_RE = re.compile(r"objective\s+(-?\d+(?:\.\d+)?)", re.IGNORECASE)
+_NUMBER = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
+_REFERENCE_OBJ_RE = re.compile(
+    rf"REFERENCE_OBJECTIVE\s*(?:[:=]\s*)?({_NUMBER})", re.IGNORECASE
+)
+_OBJECTIVE_VALUE_RE = re.compile(
+    rf"objective_value\s*[:=]\s*({_NUMBER})", re.IGNORECASE
+)
+_OBJ_RE = re.compile(rf"objective\s+({_NUMBER})", re.IGNORECASE)
 
 
 def parse_solve_output(text: str) -> SolveInfo:
@@ -27,7 +34,9 @@ def parse_solve_output(text: str) -> SolveInfo:
         status = "unbounded"
 
     obj = None
-    m = _OBJ_RE.search(t)
+    # Prefer explicit machine-readable values over solver progress text. Solver
+    # logs may contain an earlier rounded objective in scientific notation.
+    m = _REFERENCE_OBJ_RE.search(t) or _OBJECTIVE_VALUE_RE.search(t) or _OBJ_RE.search(t)
     if m:
         try:
             obj = float(m.group(1))
