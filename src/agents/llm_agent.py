@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 try:
     from langchain_core.messages import SystemMessage, HumanMessage
@@ -15,7 +15,7 @@ except Exception:
     class HumanMessage:  # type: ignore[override]
         content: str
 
-from .llm_utils import get_llm, llm_call
+from llm_utils import get_llm, llm_call
 
 
 @dataclass
@@ -28,8 +28,17 @@ def call_classifier(
     cfg: AgentConfig,
     system_prompt: str,
     user_prompt: str,
+    *,
+    response_schema: Optional[Dict[str, Any]] = None,
+    max_output_tokens: Optional[int] = None,
 ) -> str:
     llm = get_llm(cfg.model)
+    if response_schema and cfg.model.startswith("vertex-"):
+        llm = llm.bind(
+            response_mime_type="application/json",
+            response_schema=response_schema,
+            max_output_tokens=max_output_tokens or 65536,
+        )
     msgs = [SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)]
     return llm_call(llm, msgs, use_logprobs=False)
 
