@@ -25,8 +25,8 @@ The public data subset contains:
 
 - `data/EXEOS/AMPL4-gemini2.5/ErrorAnalysis_AMPL4-gemini2.5pro.xlsx`
 - `data/EXEOS/AMPL4-o4mini/ErrorAnalysis_AMPL-o4mini.xlsx`
-- `result/batch_report_human_validated.csv`
-- `result/batch_patch_eval_human_validated.csv`
+- `result/batch_report.csv`
+- `result/batch_patch_eval.csv`
 
 Each combined result file contains 231 cases: 97 Gemini 2.5 Pro cases followed by 134 o4-mini cases. The `model` column identifies the source model for repeated `problem_id` and `run_id` pairs, and the `human_validation` column preserves the validated True/False status.
 
