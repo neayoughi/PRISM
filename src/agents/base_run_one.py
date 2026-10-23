@@ -57,7 +57,9 @@ def main() -> None:
 
     run = load_run(args.gen_run_dir, args.ref_solution_dir, problem_id, run_id)
 
-    prompts_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "prompts"))
+    prompts_dir = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "prompts")
+)
     prompts = PromptBundle(
         system_prompt=_read(os.path.join(prompts_dir, "system.txt")),
         patch_regen_system=_read(os.path.join(prompts_dir, "patch_regen_system.txt")),
