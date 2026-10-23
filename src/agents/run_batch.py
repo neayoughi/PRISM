@@ -98,7 +98,7 @@ def main() -> None:
             cmd = [
                 sys.executable,
                 "-m",
-                "agents.base_run_one",
+                "variant4_agent.run_one",
                 "--gen_run_dir",
                 gen_run_dir,
                 "--ref_solution_dir",
